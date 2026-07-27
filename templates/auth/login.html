@@ -1,0 +1,33 @@
+{% extends "auth/_auth_base.html" %}
+{% block title %}Connexion — Registre Contrôle{% endblock %}
+{% block auth_content %}
+<h2 class="mb-4 text-lg font-semibold text-marine">Connexion</h2>
+
+{% if form.non_field_errors %}
+  <div class="mb-4 rounded border border-rouge/40 bg-rouge/10 px-3 py-2 text-sm text-rouge">
+    {{ form.non_field_errors }}
+  </div>
+{% endif %}
+
+<form method="post" class="space-y-4">
+  {% csrf_token %}
+  <div>
+    <label class="mb-1 block text-sm font-medium text-slate-700" for="{{ form.email.id_for_label }}">{{ form.email.label }}</label>
+    {{ form.email }}
+    {{ form.email.errors }}
+  </div>
+  <div>
+    <label class="mb-1 block text-sm font-medium text-slate-700" for="{{ form.password.id_for_label }}">{{ form.password.label }}</label>
+    {{ form.password }}
+    {{ form.password.errors }}
+  </div>
+  <button type="submit" class="w-full rounded bg-marine px-4 py-2.5 text-sm font-semibold text-white hover:bg-marine/90">
+    Se connecter
+  </button>
+</form>
+
+<div class="mt-4 flex items-center justify-between text-sm">
+  <a href="{% url 'accounts:forgot_password' %}" class="text-sarcelle hover:underline">Mot de passe oublié ?</a>
+  <a href="{% url 'accounts:signup' %}" class="text-sarcelle hover:underline">Créer un compte</a>
+</div>
+{% endblock %}

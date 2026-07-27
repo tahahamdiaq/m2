@@ -1,0 +1,11 @@
+Bonjour {{ user.full_name }},
+
+{% if purpose == "password_reset" %}Vous avez demandé la réinitialisation de votre mot de passe sur Registre Contrôle.{% else %}Bienvenue sur Registre Contrôle ! Pour activer votre compte, saisissez le code ci-dessous.{% endif %}
+
+Votre code de vérification : {{ code }}
+
+Ce code expire dans {{ ttl_minutes }} minutes et ne peut être utilisé qu'une seule fois.
+
+Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.
+
+— Registre Contrôle

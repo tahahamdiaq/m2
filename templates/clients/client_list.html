@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% block title %}Tableau clients — Registre Contrôle{% endblock %}
+{% block main_width %}max-w-none{% endblock %}
+{% block content %}
+
+<div class="mb-5 flex flex-wrap items-center justify-between gap-3">
+  <div>
+    <h1 class="text-xl font-bold text-marine">Tableau des clients</h1>
+    <p class="font-mono text-xs uppercase tracking-widest text-slate-500">{{ total_count }} client(s) au registre</p>
+  </div>
+  <a href="{% url 'clients:client_create' %}"
+     class="rounded bg-sarcelle px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-sarcelle/90">
+    + Nouveau client
+  </a>
+</div>
+
+{# --- Filtres ---------------------------------------------------------- #}
+<form method="get" class="mb-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+  <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+    <div>
+      <label class="mb-1 block font-mono text-[11px] uppercase tracking-wider text-slate-500">Client</label>
+      {{ filter_form.q_nom }}
+    </div>
+    <div>
+      <label class="mb-1 block font-mono text-[11px] uppercase tracking-wider text-slate-500">Adresse</label>
+      {{ filter_form.q_adresse }}
+    </div>
+    <div>
+      <label class="mb-1 block font-mono text-[11px] uppercase tracking-wider text-slate-500">N° abonnement</label>
+      {{ filter_form.q_abonnement }}
+    </div>
+    <div>
+      <label class="mb-1 block font-mono text-[11px] uppercase tracking-wider text-slate-500">Status</label>
+      {{ filter_form.status }}
+    </div>
+    <div class="flex items-end gap-2">
+      <button type="submit" class="flex-1 rounded bg-marine px-4 py-1.5 text-sm font-medium text-white hover:bg-marine/90">Filtrer</button>
+      <a href="{% url 'clients:client_list' %}" class="rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50">Réinit.</a>
+    </div>
+  </div>
+</form>
+
+{# --- Légende des icônes d'état ----------------------------------------- #}
+<div class="mb-2 flex flex-wrap items-center gap-4 px-1 font-mono text-[11px] uppercase tracking-wider text-slate-500">
+  <span class="flex items-center gap-1.5"><span class="voyant voyant-rouge !animate-none !h-2 !w-2"></span>Triangle rouge = alerte (retard)</span>
+  <span class="flex items-center gap-1.5"><span class="voyant voyant-ambre !animate-none !h-2 !w-2"></span>Cloche orange = rappel</span>
+  <span class="normal-case tracking-normal">— détail par catégorie sur la page Notifications</span>
+</div>
+
+{# --- Tableau ledger ---------------------------------------------------- #}
+<div class="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
+  <table class="table-grille w-full border-collapse text-sm">
+    <thead>
+      <tr class="bg-marine text-left text-white">
+        <th rowspan="2" class="px-2 py-2.5 font-mono text-[10px] font-medium uppercase tracking-wider">État</th>
+        <th rowspan="2" class="px-2 py-2.5 font-mono text-[10px] font-medium uppercase tracking-wider">Client</th>
+        <th rowspan="2" class="px-2 py-2.5 font-mono text-[10px] font-medium uppercase tracking-wider">Adresse</th>
+        <th rowspan="2" class="px-2 py-2.5 font-mono text-[10px] font-medium uppercase tracking-wider">N° abonnement</th>
+        <th rowspan="2" class="px-2 py-2.5 font-mono text-[10px] font-medium uppercase tracking-wider">Status</th>
+        <th rowspan="2" class="px-2 py-2.5 font-mono text-[10px] font-medium uppercase tracking-wider">Spécialités</th>
+        <th rowspan="2" class="px-2 py-2.5 font-mono text-[10px] font-medium uppercase tracking-wider">Visite initiale</th>
+        <th colspan="2" class="px-2 py-1.5 text-center font-mono text-[10px] font-medium uppercase tracking-wider">1ère visite</th>
+        <th colspan="2" class="px-2 py-1.5 text-center font-mono text-[10px] font-medium uppercase tracking-wider">2ème visite</th>
+        <th rowspan="2" class="px-2 py-2.5 font-mono text-[10px] font-medium uppercase tracking-wider">Rapport insp.</th>
+        <th rowspan="2" class="px-2 py-2.5 font-mono text-[10px] font-medium uppercase tracking-wider">Rapport assist.</th>
+        <th rowspan="2" class="px-2 py-2.5 font-mono text-[10px] font-medium uppercase tracking-wider">Paiement</th>
+        <th rowspan="2" class="px-2 py-2.5 font-mono text-[10px] font-medium uppercase tracking-wider">Décharge facture</th>
+      </tr>
+      <tr class="bg-marine text-left text-white">
+        <th class="px-2 py-1.5 font-mono text-[10px] font-normal uppercase tracking-wider text-white/80">Dernière</th>
+        <th class="px-2 py-1.5 font-mono text-[10px] font-normal uppercase tracking-wider text-white/80">Prochaine</th>
+        <th class="px-2 py-1.5 font-mono text-[10px] font-normal uppercase tracking-wider text-white/80">Dernière</th>
+        <th class="px-2 py-1.5 font-mono text-[10px] font-normal uppercase tracking-wider text-white/80">Prochaine</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+        <tr class="cursor-pointer transition-colors hover:bg-fond/70"
+            onclick="window.location='{% url 'clients:client_detail' row.client.pk %}'">
+          <td class="px-2 py-2">
+            {% if row.has_alerte or row.has_rappel %}
+              <div class="flex items-center gap-1.5">
+                {% if row.has_alerte %}
+                  <svg class="icone-clignote h-4 w-4 text-rouge" viewBox="0 0 24 24">
+                    <title>Alerte — retard</title>
+                    <path d="M12 2 22 20H2Z" fill="currentColor"/>
+                    <rect x="11" y="9" width="2" height="6" rx="1" fill="#fff"/>
+                    <circle cx="12" cy="17.3" r="1.2" fill="#fff"/>
+                  </svg>
+                {% endif %}
+                {% if row.has_rappel %}
+                  <svg class="icone-clignote h-4 w-4 text-ambre" viewBox="0 0 24 24" fill="currentColor">
+                    <title>Rappel en cours</title>
+                    <path d="M12 2a6 6 0 0 0-6 6v3.6L4.4 15a1 1 0 0 0 .9 1.5h13.4a1 1 0 0 0 .9-1.5L18 11.6V8a6 6 0 0 0-6-6Z"/>
+                    <path d="M9.8 18a2.2 2.2 0 0 0 4.4 0Z"/>
+                  </svg>
+                {% endif %}
+              </div>
+            {% else %}
+              <span class="voyant voyant-vert opacity-40" title="Rien à signaler"></span>
+            {% endif %}
+          </td>
+          <td class="px-2 py-2 font-medium text-marine">{{ row.client.nom }}</td>
+          <td class="px-2 py-2 text-slate-600">{{ row.client.adresse }}</td>
+          <td class="px-2 py-2 font-mono text-xs text-slate-700">{{ row.client.numero_abonnement }}</td>
+          <td class="px-2 py-2">
+            {% if row.client.status == 'Actif' %}
+              <span class="rounded-full bg-sarcelle/10 px-2.5 py-0.5 text-xs font-semibold text-sarcelle">Actif</span>
+            {% else %}
+              <span class="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-500">Non Actif</span>
+            {% endif %}
+          </td>
+          <td class="px-2 py-2">
+            <div class="flex max-w-[150px] flex-wrap gap-1">
+              {% for code, label in row.client.specialites_actives %}
+                <span class="rounded border border-marine/15 bg-fond px-1.5 py-0.5 font-mono text-[10px] font-medium text-marine" title="{{ label }}">{{ code }}</span>
+              {% empty %}
+                <span class="text-xs text-slate-400">—</span>
+              {% endfor %}
+            </div>
+          </td>
+          <td class="px-2 py-2 font-mono text-xs text-slate-700">{{ row.client.visite_initiale|date:"d/m/Y"|default:"—" }}</td>
+          <td class="px-2 py-2 font-mono text-xs text-slate-700">{{ row.client.derniere_1ere_visite|date:"d/m/Y"|default:"—" }}</td>
+          <td class="px-2 py-2 font-mono text-xs text-slate-700">{{ row.client.prochaine_1ere_visite|date:"d/m/Y"|default:"—" }}</td>
+          <td class="px-2 py-2 font-mono text-xs text-slate-700">{{ row.client.derniere_2eme_visite|date:"d/m/Y"|default:"—" }}</td>
+          <td class="px-2 py-2 font-mono text-xs text-slate-700">{{ row.client.prochaine_2eme_visite|date:"d/m/Y"|default:"—" }}</td>
+          <td class="px-2 py-2">
+            {% if row.visite %}
+              {% if row.visite.rapport_inspecteurs == 'Remis' %}
+                <span class="text-xs font-semibold text-sarcelle">Remis</span>
+              {% else %}
+                <span class="text-xs font-semibold text-rouge">Non remis</span>
+              {% endif %}
+            {% else %}
+              <span class="text-xs text-slate-400">—</span>
+            {% endif %}
+          </td>
+          <td class="px-2 py-2">
+            {% if row.visite %}
+              {% if row.visite.rapport_assistante == 'Remis' %}
+                <span class="text-xs font-semibold text-sarcelle">Remis</span>
+              {% else %}
+                <span class="text-xs font-semibold text-rouge">Non remis</span>
+              {% endif %}
+            {% else %}
+              <span class="text-xs text-slate-400">—</span>
+            {% endif %}
+          </td>
+          <td class="px-2 py-2">
+            {% if row.client.payement == 'Oui' %}
+              <span class="text-xs font-semibold text-sarcelle">Oui</span>
+            {% else %}
+              <span class="text-xs font-semibold text-rouge">Non</span>
+            {% endif %}
+          </td>
+          <td class="px-2 py-2">
+            {% if row.client.decharge_facture == 'Oui' %}
+              <span class="text-xs font-semibold text-sarcelle">Oui</span>
+            {% else %}
+              <span class="text-xs font-semibold text-rouge">Non</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr>
+          <td colspan="15" class="px-4 py-10 text-center text-sm text-slate-500">
+            Aucun client ne correspond à ces critères.
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{# --- Pagination -------------------------------------------------------- #}
+{% if page.paginator.num_pages > 1 %}
+<div class="mt-4 flex items-center justify-between">
+  <p class="font-mono text-xs text-slate-500">
+    Page {{ page.number }} / {{ page.paginator.num_pages }}
+  </p>
+  <div class="flex gap-2">
+    {% if page.has_previous %}
+      <a href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page.previous_page_number }}"
+         class="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-fond">← Précédent</a>
+    {% endif %}
+    {% if page.has_next %}
+      <a href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page.next_page_number }}"
+         class="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-fond">Suivant →</a>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

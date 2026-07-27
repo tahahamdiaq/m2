@@ -1,0 +1,353 @@
+{% extends "base.html" %}
+{% block title %}{% if client %}{{ client.nom }}{% else %}Nouveau client{% endif %} — Registre Contrôle{% endblock %}
+{% block content %}
+
+<div class="mb-5 flex flex-wrap items-center justify-between gap-3">
+  <div>
+    <a href="{% url 'clients:client_list' %}" class="text-sm text-sarcelle hover:underline">← Tableau clients</a>
+    <h1 class="mt-1 text-xl font-bold text-marine">
+      {% if client %}{{ client.nom }}{% else %}Nouveau client{% endif %}
+    </h1>
+    {% if client %}
+      <p class="font-mono text-xs uppercase tracking-widest text-slate-500">
+        Abonnement {{ client.numero_abonnement }} — créé le {{ client.created_at|date:"d/m/Y" }}
+      </p>
+    {% endif %}
+  </div>
+</div>
+
+{# --- Alertes / rappels actifs du client -------------------------------- #}
+{% if alerts %}
+  <div class="mb-5 space-y-2">
+    {% for alert in alerts %}
+      <div class="flex items-center gap-3 rounded-lg border px-4 py-3 text-sm shadow-sm
+                  bg-{{ alert.couleur }}/5
+                  {% if alert.is_alerte %}border-rouge/40{% else %}border-ambre/40{% endif %}">
+        <span class="voyant {% if alert.is_alerte %}voyant-rouge{% else %}voyant-ambre{% endif %}"></span>
+        <div class="flex-1">
+          <span class="mr-1 rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-white
+                       {% if alert.is_alerte %}bg-rouge{% else %}bg-ambre{% endif %}">
+            {% if alert.is_alerte %}Alerte{% else %}Rappel{% endif %}
+          </span>
+          <span class="mr-2 rounded border border-{{ alert.couleur }}/50 px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-{{ alert.couleur }}">
+            {{ alert.categorie_label }} — {{ alert.visite_label }}
+          </span>
+          <span class="{% if alert.is_alerte %}text-rouge{% else %}text-slate-700{% endif %}">{{ alert.message }}</span>
+        </div>
+        <span class="hidden font-mono text-xs text-slate-500 sm:inline">échéance {{ alert.deadline|date:"d/m/Y" }}</span>
+      </div>
+    {% endfor %}
+  </div>
+{% endif %}
+
+{% if form.non_field_errors %}
+  <div class="mb-4 rounded border border-rouge/40 bg-rouge/10 px-4 py-2.5 text-sm text-rouge">
+    {{ form.non_field_errors }}
+  </div>
+{% endif %}
+
+<form method="post" x-data="{ confirmDelete: false }">
+  {% csrf_token %}
+  <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
+
+    {# ---------------- Identité ---------------- #}
+    <section class="rounded-lg border border-slate-200 bg-white shadow-sm">
+      <h2 class="border-b border-slate-100 px-5 py-3 font-mono text-xs font-semibold uppercase tracking-widest text-marine">Identité</h2>
+      <div class="space-y-4 p-5">
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700">{{ form.nom.label }}</label>
+          {{ form.nom }}{% if form.nom.errors %}<p class="mt-1 text-xs text-rouge">{{ form.nom.errors|first }}</p>{% endif %}
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700">{{ form.adresse.label }}</label>
+          {{ form.adresse }}{% if form.adresse.errors %}<p class="mt-1 text-xs text-rouge">{{ form.adresse.errors|first }}</p>{% endif %}
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700">{{ form.numero_abonnement.label }}</label>
+            {{ form.numero_abonnement }}{% if form.numero_abonnement.errors %}<p class="mt-1 text-xs text-rouge">{{ form.numero_abonnement.errors|first }}</p>{% endif %}
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700">{{ form.status.label }}</label>
+            {{ form.status }}
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700">{{ form.payement.label }}</label>
+            {{ form.payement }}
+            <div id="wrap_date_paiement_facture" class="mt-3" {% if form.payement.value != "Oui" %}hidden{% endif %}>
+              <label class="mb-1 block text-sm font-medium text-slate-700">{{ form.date_paiement_facture.label }}</label>
+              {{ form.date_paiement_facture }}
+            </div>
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700">{{ form.decharge_facture.label }}</label>
+            {{ form.decharge_facture }}
+            <div id="wrap_date_decharge_facture" class="mt-3" {% if form.decharge_facture.value != "Oui" %}hidden{% endif %}>
+              <label class="mb-1 block text-sm font-medium text-slate-700">{{ form.date_decharge_facture.label }}</label>
+              {{ form.date_decharge_facture }}
+            </div>
+          </div>
+        </div>
+        <p class="text-xs text-slate-500">
+          La date apparaît quand le statut passe à « Oui » (pré-remplie au jour même, modifiable) ;
+          elle est conservée dans l'historique des visites.
+        </p>
+      </div>
+    </section>
+
+    {# ---------------- Spécialités ---------------- #}
+    <section class="rounded-lg border border-slate-200 bg-white shadow-sm">
+      <h2 class="border-b border-slate-100 px-5 py-3 font-mono text-xs font-semibold uppercase tracking-widest text-marine">Spécialités contrôlées</h2>
+      <div class="grid grid-cols-1 gap-2 p-5 sm:grid-cols-2">
+        {% for field in form %}
+          {% if "spec_" in field.name %}
+            <label class="flex cursor-pointer items-center gap-2.5 rounded border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-fond/60">
+              {{ field }}
+              <span>{{ field.label }}</span>
+            </label>
+          {% endif %}
+        {% endfor %}
+      </div>
+      <p class="border-t border-slate-100 px-5 py-3 text-xs text-slate-500">
+        Contrôle annuel pour toutes les spécialités — <span class="font-mono font-medium">EL</span> (électricité) : semestriel, d'où les 2 cycles de visite espacés de 6 mois.
+      </p>
+    </section>
+
+    {# ---------------- Visites ---------------- #}
+    <section class="rounded-lg border border-slate-200 bg-white shadow-sm lg:col-span-2">
+      <h2 class="border-b border-slate-100 px-5 py-3 font-mono text-xs font-semibold uppercase tracking-widest text-marine">Visites</h2>
+      <div class="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 lg:grid-cols-5">
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700">{{ form.visite_initiale.label }}</label>
+          {{ form.visite_initiale }}{% if form.visite_initiale.errors %}<p class="mt-1 text-xs text-rouge">{{ form.visite_initiale.errors|first }}</p>{% endif %}
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700">{{ form.derniere_1ere_visite.label }}</label>
+          {{ form.derniere_1ere_visite }}{% if form.derniere_1ere_visite.errors %}<p class="mt-1 text-xs text-rouge">{{ form.derniere_1ere_visite.errors|first }}</p>{% endif %}
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700">{{ form.prochaine_1ere_visite.label }}</label>
+          {{ form.prochaine_1ere_visite }}{% if form.prochaine_1ere_visite.errors %}<p class="mt-1 text-xs text-rouge">{{ form.prochaine_1ere_visite.errors|first }}</p>{% endif %}
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700">{{ form.derniere_2eme_visite.label }}</label>
+          {{ form.derniere_2eme_visite }}{% if form.derniere_2eme_visite.errors %}<p class="mt-1 text-xs text-rouge">{{ form.derniere_2eme_visite.errors|first }}</p>{% endif %}
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700">{{ form.prochaine_2eme_visite.label }}</label>
+          {{ form.prochaine_2eme_visite }}{% if form.prochaine_2eme_visite.errors %}<p class="mt-1 text-xs text-rouge">{{ form.prochaine_2eme_visite.errors|first }}</p>{% endif %}
+        </div>
+      </div>
+      <p class="border-t border-slate-100 px-5 py-3 text-xs text-slate-500">
+        Seule la « Dernière 1ère visite » se saisit — le reste est calculé automatiquement :
+        2ème visite = + 6 mois ; prochaines visites = dernière visite + 1 an.
+      </p>
+    </section>
+
+    {# ---------------- Suivi du rapport — visite courante ---------------- #}
+    <section class="rounded-lg border border-slate-200 bg-white shadow-sm lg:col-span-2">
+      <h2 class="border-b border-slate-100 px-5 py-3 font-mono text-xs font-semibold uppercase tracking-widest text-marine">
+        Suivi administratif — rapport de la visite courante
+        {% if client and client.visite_courante %}
+          <span class="ml-2 normal-case tracking-normal text-slate-500">(visite du {{ client.visite_courante.date_visite|date:"d/m/Y" }})</span>
+        {% endif %}
+      </h2>
+      {% if client and client.visite_courante %}
+        {{ form.rapport_visite_date }}
+        <div class="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700">{{ form.rapport_inspecteurs.label }}</label>
+            {{ form.rapport_inspecteurs }}
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700">{{ form.date_remise_inspecteurs.label }}</label>
+            {{ form.date_remise_inspecteurs }}
+            <p class="mt-1 text-xs text-slate-500">Renseignée automatiquement quand le rapport passe à « Remis » (démarre le délai de 15 jours).</p>
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700">{{ form.rapport_assistante.label }}</label>
+            {{ form.rapport_assistante }}
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700">{{ form.date_remise_assistante.label }}</label>
+            {{ form.date_remise_assistante }}
+            <p class="mt-1 text-xs text-slate-500">Renseignée automatiquement quand le rapport assistante passe à « Remis ».</p>
+          </div>
+        </div>
+        <p class="border-t border-slate-100 px-5 py-3 text-xs text-slate-500">
+          À chaque nouvelle visite, un nouveau rapport « Non remis » s'ouvre automatiquement ;
+          les rapports des visites précédentes sont conservés dans l'historique ci-dessous.
+        </p>
+      {% else %}
+        <p class="p-5 text-sm text-slate-500">
+          Aucune visite effectuée pour l'instant — le suivi du rapport s'ouvrira automatiquement
+          dès la première visite (date de « Dernière 1ère visite » atteinte).
+        </p>
+      {% endif %}
+    </section>
+
+    {# ---------------- Historique des visites ---------------- #}
+    {% if client and client.visites.all %}
+    <section class="rounded-lg border border-slate-200 bg-white shadow-sm lg:col-span-2">
+      <h2 class="border-b border-slate-100 px-5 py-3 font-mono text-xs font-semibold uppercase tracking-widest text-marine">Historique des visites</h2>
+      <div class="overflow-x-auto">
+        <table class="w-full border-collapse text-sm">
+          <thead>
+            <tr class="bg-fond text-left">
+              <th class="px-5 py-2 font-mono text-[11px] font-medium uppercase tracking-wider text-slate-500">Date de la visite</th>
+              <th class="px-5 py-2 font-mono text-[11px] font-medium uppercase tracking-wider text-slate-500">Rapport inspecteurs</th>
+              <th class="px-5 py-2 font-mono text-[11px] font-medium uppercase tracking-wider text-slate-500">Date remise inspecteurs</th>
+              <th class="px-5 py-2 font-mono text-[11px] font-medium uppercase tracking-wider text-slate-500">Rapport assistante</th>
+              <th class="px-5 py-2 font-mono text-[11px] font-medium uppercase tracking-wider text-slate-500">Date remise assistante</th>
+              <th class="px-5 py-2 font-mono text-[11px] font-medium uppercase tracking-wider text-slate-500">Date paiement facture</th>
+              <th class="px-5 py-2 font-mono text-[11px] font-medium uppercase tracking-wider text-slate-500">Date décharge facture</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            {% for visite in client.visites.all %}
+              <tr>
+                <td class="px-5 py-2.5 font-mono text-slate-700">
+                  {{ visite.date_visite|date:"d/m/Y" }}
+                  {% if forloop.first %}<span class="ml-2 rounded-full bg-sarcelle/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-sarcelle">courante</span>{% endif %}
+                </td>
+                <td class="px-5 py-2.5">
+                  {% if visite.rapport_inspecteurs == 'Remis' %}
+                    <span class="text-xs font-semibold text-sarcelle">Remis</span>
+                  {% else %}
+                    <span class="text-xs font-semibold text-rouge">Non remis</span>
+                  {% endif %}
+                </td>
+                <td class="px-5 py-2.5 font-mono text-slate-700">{{ visite.date_remise_inspecteurs|date:"d/m/Y"|default:"—" }}</td>
+                <td class="px-5 py-2.5">
+                  {% if visite.rapport_assistante == 'Remis' %}
+                    <span class="text-xs font-semibold text-sarcelle">Remis</span>
+                  {% else %}
+                    <span class="text-xs font-semibold text-rouge">Non remis</span>
+                  {% endif %}
+                </td>
+                <td class="px-5 py-2.5 font-mono text-slate-700">{{ visite.date_remise_assistante|date:"d/m/Y"|default:"—" }}</td>
+                <td class="px-5 py-2.5 font-mono text-slate-700">{{ visite.date_paiement_facture|date:"d/m/Y"|default:"—" }}</td>
+                <td class="px-5 py-2.5 font-mono text-slate-700">{{ visite.date_decharge_facture|date:"d/m/Y"|default:"—" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+    {% endif %}
+  </div>
+
+  {# ---------------- Actions ---------------- #}
+  <div class="mt-6 flex flex-wrap items-center gap-3">
+    <button type="submit" class="rounded bg-sarcelle px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-sarcelle/90">
+      Enregistrer
+    </button>
+    <a href="{% url 'clients:client_list' %}" class="rounded border border-slate-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-fond">
+      Annuler
+    </a>
+    {% if client %}
+      <button type="button" @click="confirmDelete = true"
+              class="ml-auto rounded border border-rouge/40 bg-white px-5 py-2.5 text-sm font-medium text-rouge hover:bg-rouge/5">
+        Supprimer
+      </button>
+    {% endif %}
+  </div>
+
+  {# ---------------- Modale de confirmation ---------------- #}
+  {% if client %}
+  <div x-cloak x-show="confirmDelete" @keydown.escape.window="confirmDelete = false"
+       class="fixed inset-0 z-50 flex items-center justify-center bg-marine/60 p-4">
+    <div @click.outside="confirmDelete = false" class="w-full max-w-md rounded-lg bg-white p-6 shadow-xl" style="border-top: 3px solid #C0453D;">
+      <h3 class="mb-2 text-lg font-semibold text-marine">Supprimer ce client ?</h3>
+      <p class="mb-5 text-sm text-slate-600">
+        Le client <strong>{{ client.nom }}</strong> (abonnement
+        <span class="font-mono">{{ client.numero_abonnement }}</span>) et son suivi
+        seront définitivement supprimés du registre.
+      </p>
+      <div class="flex justify-end gap-3">
+        <button type="button" @click="confirmDelete = false"
+                class="rounded border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-fond">Annuler</button>
+        <button type="submit" form="delete-form"
+                class="rounded bg-rouge px-4 py-2 text-sm font-semibold text-white hover:bg-rouge/90">Supprimer définitivement</button>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</form>
+
+{% if client %}
+<form id="delete-form" method="post" action="{% url 'clients:client_delete' client.pk %}">
+  {% csrf_token %}
+</form>
+{% endif %}
+
+<script>
+  // Remplit en direct les dates calculées à partir de la dernière 1ère visite
+  // (mêmes règles que ClientForm.clean() côté serveur, qui reste la référence)
+  (function () {
+    const d1Input = document.getElementById("id_derniere_1ere_visite");
+    if (!d1Input) return;
+    const targets = {
+      id_derniere_2eme_visite: 6,
+      id_prochaine_1ere_visite: 12,
+      id_prochaine_2eme_visite: 18,
+    };
+
+    function addMonths(iso, months) {
+      const [y, m, d] = iso.split("-").map(Number);
+      const total = m - 1 + months;
+      const year = y + Math.floor(total / 12);
+      const month = total % 12; // 0-based
+      const lastDay = new Date(year, month + 1, 0).getDate();
+      const day = Math.min(d, lastDay);
+      return (
+        year + "-" +
+        String(month + 1).padStart(2, "0") + "-" +
+        String(day).padStart(2, "0")
+      );
+    }
+
+    function refresh() {
+      for (const [id, months] of Object.entries(targets)) {
+        const input = document.getElementById(id);
+        if (input) input.value = d1Input.value ? addMonths(d1Input.value, months) : "";
+      }
+    }
+
+    d1Input.addEventListener("input", refresh);
+    d1Input.addEventListener("change", refresh);
+  })();
+
+  // Affiche la date paiement / décharge quand le statut passe à « Oui »
+  // (pré-remplie au jour même, modifiable)
+  (function () {
+    const pairs = [
+      ["id_payement", "wrap_date_paiement_facture", "id_date_paiement_facture"],
+      ["id_decharge_facture", "wrap_date_decharge_facture", "id_date_decharge_facture"],
+    ];
+    function todayIso() {
+      const d = new Date();
+      return (
+        d.getFullYear() + "-" +
+        String(d.getMonth() + 1).padStart(2, "0") + "-" +
+        String(d.getDate()).padStart(2, "0")
+      );
+    }
+    for (const [selId, wrapId, dateId] of pairs) {
+      const sel = document.getElementById(selId);
+      const wrap = document.getElementById(wrapId);
+      const input = document.getElementById(dateId);
+      if (!sel || !wrap || !input) continue;
+      sel.addEventListener("change", function () {
+        const oui = sel.value === "Oui";
+        wrap.hidden = !oui;
+        if (oui && !input.value) input.value = todayIso();
+        if (!oui) input.value = "";
+      });
+    }
+  })();
+</script>
+
+{% endblock %}

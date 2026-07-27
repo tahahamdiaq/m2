@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Alertes & Rappels — Registre Contrôle{% endblock %}
+{% block content %}
+
+<div class="mb-5 flex flex-wrap items-center justify-between gap-3">
+  <div>
+    <h1 class="text-xl font-bold text-marine">Notifications</h1>
+    <p class="font-mono text-xs uppercase tracking-widest text-slate-500">
+      {{ counts.alerte }} alerte(s) · {{ counts.rappel }} rappel(s)
+    </p>
+  </div>
+  <div class="flex flex-col items-end gap-2">
+    <div class="flex gap-2">
+      <a href="{% url 'clients:alert_list' %}{% if cat %}?cat={{ cat }}{% endif %}"
+         class="rounded px-3 py-1.5 text-sm font-medium {% if not kind %}bg-marine text-white{% else %}border border-slate-300 bg-white text-slate-600 hover:bg-fond{% endif %}">
+        Tous <span class="font-mono text-xs">({{ counts.all }})</span>
+      </a>
+      <a href="{% url 'clients:alert_list' %}?kind=rappel{% if cat %}&cat={{ cat }}{% endif %}"
+         class="rounded px-3 py-1.5 text-sm font-medium {% if kind == 'rappel' %}bg-ambre text-white{% else %}border border-slate-300 bg-white text-slate-600 hover:bg-fond{% endif %}">
+        Rappels <span class="font-mono text-xs">({{ counts.rappel }})</span>
+      </a>
+      <a href="{% url 'clients:alert_list' %}?kind=alerte{% if cat %}&cat={{ cat }}{% endif %}"
+         class="rounded px-3 py-1.5 text-sm font-medium {% if kind == 'alerte' %}bg-rouge text-white{% else %}border border-slate-300 bg-white text-slate-600 hover:bg-fond{% endif %}">
+        Alertes <span class="font-mono text-xs">({{ counts.alerte }})</span>
+      </a>
+    </div>
+    <div class="flex gap-2">
+      <a href="{% url 'clients:alert_list' %}{% if kind %}?kind={{ kind }}{% endif %}"
+         class="rounded px-3 py-1.5 text-sm font-medium {% if not cat %}bg-marine text-white{% else %}border border-slate-300 bg-white text-slate-600 hover:bg-fond{% endif %}">
+        Toutes catégories
+      </a>
+      <a href="{% url 'clients:alert_list' %}?cat=inspecteurs{% if kind %}&kind={{ kind }}{% endif %}"
+         class="rounded px-3 py-1.5 text-sm font-medium {% if cat == 'inspecteurs' %}bg-bleu text-white{% else %}border border-bleu/40 bg-white text-bleu hover:bg-bleu/5{% endif %}">
+      Inspecteurs <span class="font-mono text-xs">({{ counts.inspecteurs }})</span>
+      </a>
+      <a href="{% url 'clients:alert_list' %}?cat=assistante{% if kind %}&kind={{ kind }}{% endif %}"
+         class="rounded px-3 py-1.5 text-sm font-medium {% if cat == 'assistante' %}bg-rose text-white{% else %}border border-rose/40 bg-white text-rose hover:bg-rose/5{% endif %}">
+      Assistante <span class="font-mono text-xs">({{ counts.assistante }})</span>
+      </a>
+      <a href="{% url 'clients:alert_list' %}?cat=visite{% if kind %}&kind={{ kind }}{% endif %}"
+         class="rounded px-3 py-1.5 text-sm font-medium {% if cat == 'visite' %}bg-sarcelle text-white{% else %}border border-sarcelle/40 bg-white text-sarcelle hover:bg-sarcelle/5{% endif %}">
+      Général <span class="font-mono text-xs">({{ counts.visite }})</span>
+      </a>
+    </div>
+  </div>
+</div>
+
+<div class="space-y-2">
+  {% for alert in alerts %}
+    <a href="{% url 'clients:client_detail' alert.client_id %}"
+       class="flex items-center gap-3 rounded-lg border px-4 py-3 text-sm shadow-sm transition-colors
+              bg-{{ alert.couleur }}/5 hover:bg-{{ alert.couleur }}/10
+              {% if alert.is_alerte %}border-rouge/40{% else %}border-ambre/40{% endif %}">
+      <span class="voyant {% if alert.is_alerte %}voyant-rouge{% else %}voyant-ambre{% endif %}"></span>
+      <div class="flex-1">
+        <div class="mb-0.5 flex flex-wrap items-center gap-2">
+          <span class="rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-white
+                       {% if alert.is_alerte %}bg-rouge{% else %}bg-ambre{% endif %}">
+            {% if alert.is_alerte %}Alerte{% else %}Rappel{% endif %}
+          </span>
+          <span class="rounded border border-{{ alert.couleur }}/50 px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-{{ alert.couleur }}">
+            {{ alert.categorie_label }}
+          </span>
+          <span class="font-mono text-[10px] uppercase tracking-wider text-slate-500">{{ alert.visite_label }}</span>
+          <span class="font-semibold text-marine">{{ alert.client_nom }}</span>
+        </div>
+        <p class="{% if alert.is_alerte %}text-rouge{% else %}text-slate-600{% endif %}">{{ alert.message }}</p>
+      </div>
+      <div class="hidden text-right sm:block">
+        <p class="font-mono text-xs text-slate-500">échéance</p>
+        <p class="font-mono text-sm font-medium text-marine">{{ alert.deadline|date:"d/m/Y" }}</p>
+      </div>
+    </a>
+  {% empty %}
+    <div class="rounded-lg border border-slate-200 bg-white px-6 py-12 text-center shadow-sm">
+      <span class="voyant voyant-vert mx-auto mb-3 block !h-3 !w-3"></span>
+      <p class="text-sm font-medium text-marine">Rien à signaler</p>
+      <p class="mt-1 text-xs text-slate-500">Aucune alerte ni rappel actif pour ce filtre.</p>
+    </div>
+  {% endfor %}
+</div>
+
+{% endblock %}

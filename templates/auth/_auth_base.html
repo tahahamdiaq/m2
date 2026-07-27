@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="mx-auto mt-6 w-full max-w-md sm:mt-14">
+  <div class="mb-6 text-center">
+    <span class="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded border-2 border-ambre bg-marine font-mono text-lg font-semibold text-ambre">RC</span>
+    <h1 class="text-xl font-bold text-marine">REGISTRE CONTRÔLE</h1>
+    <p class="font-mono text-[11px] uppercase tracking-widest text-slate-500">Suivi des contrôles techniques</p>
+  </div>
+  <div class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm sm:p-8" style="border-top: 3px solid #DB8F1F;">
+    {% block auth_content %}{% endblock %}
+  </div>
+</div>
+{% endblock %}

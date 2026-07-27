@@ -1,0 +1,26 @@
+<div style="margin:0; padding:24px; background:#EDF0F2; font-family:'IBM Plex Sans', Arial, sans-serif;">
+  <div style="max-width:480px; margin:0 auto; background:#ffffff; border:1px solid #d8dde2; border-top:3px solid #DB8F1F; border-radius:8px; overflow:hidden;">
+    <div style="background:#17293D; padding:16px 24px;">
+      <span style="color:#DB8F1F; font-family:'IBM Plex Mono', monospace; font-weight:600; font-size:14px; letter-spacing:2px;">REGISTRE CONTRÔLE</span>
+    </div>
+    <div style="padding:24px;">
+      <p style="margin:0 0 12px; color:#17293D; font-size:15px;">Bonjour {{ user.full_name }},</p>
+      <p style="margin:0 0 20px; color:#475569; font-size:14px; line-height:1.5;">
+        {% if purpose == "password_reset" %}
+          Vous avez demandé la réinitialisation de votre mot de passe. Saisissez ce code pour continuer :
+        {% else %}
+          Bienvenue ! Pour activer votre compte, saisissez ce code de vérification :
+        {% endif %}
+      </p>
+      <div style="text-align:center; margin:0 0 20px;">
+        <span style="display:inline-block; background:#EDF0F2; border:1px solid #d8dde2; border-radius:6px; padding:12px 24px; font-family:'IBM Plex Mono', monospace; font-size:28px; font-weight:600; letter-spacing:8px; color:#17293D;">{{ code }}</span>
+      </div>
+      <p style="margin:0 0 8px; color:#64748b; font-size:12px;">
+        Ce code expire dans {{ ttl_minutes }} minutes et ne peut être utilisé qu'une seule fois.
+      </p>
+      <p style="margin:0; color:#64748b; font-size:12px;">
+        Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.
+      </p>
+    </div>
+  </div>
+</div>

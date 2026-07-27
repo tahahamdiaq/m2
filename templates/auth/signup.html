@@ -1,0 +1,29 @@
+{% extends "auth/_auth_base.html" %}
+{% block title %}Inscription — Registre Contrôle{% endblock %}
+{% block auth_content %}
+<h2 class="mb-4 text-lg font-semibold text-marine">Créer un compte</h2>
+
+{% if form.non_field_errors %}
+  <div class="mb-4 rounded border border-rouge/40 bg-rouge/10 px-3 py-2 text-sm text-rouge">
+    {{ form.non_field_errors }}
+  </div>
+{% endif %}
+
+<form method="post" class="space-y-4">
+  {% csrf_token %}
+  {% for field in form %}
+    <div>
+      <label class="mb-1 block text-sm font-medium text-slate-700" for="{{ field.id_for_label }}">{{ field.label }}</label>
+      {{ field }}
+      {% if field.errors %}<p class="mt-1 text-xs text-rouge">{{ field.errors|first }}</p>{% endif %}
+    </div>
+  {% endfor %}
+  <button type="submit" class="w-full rounded bg-marine px-4 py-2.5 text-sm font-semibold text-white hover:bg-marine/90">
+    S'inscrire
+  </button>
+</form>
+
+<p class="mt-4 text-center text-sm text-slate-600">
+  Déjà un compte ? <a href="{% url 'accounts:login' %}" class="text-sarcelle hover:underline">Se connecter</a>
+</p>
+{% endblock %}
