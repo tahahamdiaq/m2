@@ -1,0 +1,34 @@
+# Blueprint Render — déploie le site web + la base PostgreSQL
+# https://render.com/docs/blueprint-spec
+databases:
+  - name: registre-db
+    plan: free
+
+services:
+  - type: web
+    name: registre-controle
+    runtime: python
+    plan: free
+    buildCommand: "./build.sh"
+    startCommand: "gunicorn config.wsgi:application"
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.13.7"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: registre-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "False"
+      - key: ALLOWED_HOSTS
+        value: ".onrender.com"
+      - key: CSRF_TRUSTED_ORIGINS
+        value: "https://*.onrender.com"
+      # Emails réels (codes de vérification) — à renseigner dans le dashboard :
+      # EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+      # EMAIL_HOST_USER=..., EMAIL_HOST_PASSWORD=... (mot de passe d'application Gmail)
+      # Laisser vide pour désactiver le compte de test en production :
+      - key: VERIFICATION_BYPASS_EMAILS
+        value: "test@gmail.com"
