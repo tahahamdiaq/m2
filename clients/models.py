@@ -9,13 +9,13 @@ SPECIALITES = [
     ("EL", "Électricité"),
     ("SI", "Sécurité incendie"),
     ("APG", "Appareils à pression de gaz"),
-    ("MCNA", "Machines et engins"),
+    ("MCNA", "Monte charge non accompagnée"),
     ("LEV", "Levage"),
     ("APV", "Appareils à pression de vapeur"),
     ("GAZ", "Gaz"),
     ("ASC", "Ascenseurs"),
     ("GE", "Groupe électrogène"),
-    ("GEC", "Groupe électrogène de secours"),
+    ("GEC", "Générateur d'eau chaude"),
 ]
 
 
@@ -50,13 +50,13 @@ class Client(models.Model):
     spec_el = models.BooleanField("EL — Électricité", default=False)
     spec_si = models.BooleanField("SI — Sécurité incendie", default=False)
     spec_apg = models.BooleanField("APG — Appareils à pression de gaz", default=False)
-    spec_mcna = models.BooleanField("MCNA — Machines et engins", default=False)
+    spec_mcna = models.BooleanField("MCNA — Monte charge non accompagnée", default=False)
     spec_lev = models.BooleanField("LEV — Levage", default=False)
     spec_apv = models.BooleanField("APV — Appareils à pression de vapeur", default=False)
     spec_gaz = models.BooleanField("GAZ — Gaz", default=False)
     spec_asc = models.BooleanField("ASC — Ascenseurs", default=False)
     spec_ge = models.BooleanField("GE — Groupe électrogène", default=False)
-    spec_gec = models.BooleanField("GEC — Groupe électrogène de secours", default=False)
+    spec_gec = models.BooleanField("GEC — Générateur d'eau chaude", default=False)
 
     # Visites
     visite_initiale = models.DateField("Visite initiale", null=True, blank=True)

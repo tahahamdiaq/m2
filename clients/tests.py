@@ -1,6 +1,8 @@
 from datetime import date, timedelta
 
+from django.contrib.auth import get_user_model
 from django.test import TestCase
+from django.urls import reverse
 
 from .forms import ClientForm
 from .models import Client, Visite
@@ -8,6 +10,11 @@ from .services.alerts import (
     get_all_alerts,
     get_client_alerts,
     next_monday_deadline,
+)
+from .services.planning import (
+    calendrier_mois,
+    get_visites_prevues,
+    repartition_par_mois,
 )
 from .services.visites import sync_visites
 
@@ -287,6 +294,144 @@ class VisiteAVenirAlertTests(TestCase):
         self.assertEqual(alerts[0].days, 5)
 
 
+class PlanningVisitesTests(TestCase):
+    """Liste des visites à venir et répartition mensuelle."""
+
+    def test_collecte_les_dates_futures_seulement(self):
+        make_client(
+            derniere_1ere_visite=date(2025, 6, 4),    # passée → ignorée
+            derniere_2eme_visite=date(2025, 12, 4),   # à venir
+            prochaine_1ere_visite=date(2026, 6, 4),
+            prochaine_2eme_visite=date(2026, 12, 4),
+        )
+        prevues = get_visites_prevues(today=date(2025, 7, 1))
+        self.assertEqual(
+            [v.date_visite for v in prevues],
+            [date(2025, 12, 4), date(2026, 6, 4), date(2026, 12, 4)],
+        )
+
+    def test_cycles_et_jours_restants(self):
+        make_client(
+            derniere_2eme_visite=date(2025, 7, 11),
+            prochaine_1ere_visite=date(2026, 1, 15),
+        )
+        prevues = get_visites_prevues(today=date(2025, 7, 1))
+        self.assertEqual(prevues[0].cycle, 2)
+        self.assertEqual(prevues[0].jours, 10)
+        self.assertTrue(prevues[0].is_imminente)
+        self.assertEqual(prevues[1].cycle, 1)
+        self.assertFalse(prevues[1].is_imminente)
+
+    def test_dates_en_double_comptees_une_fois(self):
+        # Un client sans historique peut avoir deux champs à la même date
+        make_client(
+            derniere_2eme_visite=date(2026, 3, 10),
+            prochaine_2eme_visite=date(2026, 3, 10),
+        )
+        prevues = get_visites_prevues(today=date(2025, 7, 1))
+        self.assertEqual(len(prevues), 1)
+
+    def test_tri_par_date_puis_nom(self):
+        make_client(nom="Zenith", prochaine_1ere_visite=date(2026, 1, 10))
+        make_client(nom="Alpha", prochaine_1ere_visite=date(2026, 1, 10))
+        make_client(nom="Beta", prochaine_1ere_visite=date(2026, 1, 5))
+        prevues = get_visites_prevues(today=date(2025, 7, 1))
+        self.assertEqual([v.client.nom for v in prevues], ["Beta", "Alpha", "Zenith"])
+
+    def test_repartition_par_mois(self):
+        make_client(nom="A", prochaine_1ere_visite=date(2026, 3, 10))
+        make_client(nom="B", prochaine_1ere_visite=date(2026, 3, 20))
+        make_client(nom="C", prochaine_1ere_visite=date(2026, 9, 1))
+        make_client(nom="D", prochaine_1ere_visite=date(2027, 3, 1))
+        prevues = get_visites_prevues(today=date(2025, 7, 1))
+        rep = repartition_par_mois(prevues, 2026)
+        self.assertEqual(len(rep), 12)
+        self.assertEqual(rep[2]["count"], 2)      # mars
+        self.assertEqual(rep[2]["pourcentage"], 100)
+        self.assertEqual(rep[8]["count"], 1)      # septembre
+        self.assertEqual(rep[8]["pourcentage"], 50)
+        self.assertEqual(rep[0]["count"], 0)      # janvier
+
+    def test_calendrier_marque_les_jours_avec_visite(self):
+        make_client(nom="A", prochaine_1ere_visite=date(2026, 3, 10))
+        make_client(nom="B", prochaine_2eme_visite=date(2026, 3, 10))
+        make_client(nom="C", prochaine_2eme_visite=date(2026, 3, 24))
+        prevues = get_visites_prevues(today=date(2025, 7, 1))
+        semaines = calendrier_mois(prevues, 2026, 3, today=date(2025, 7, 1))
+
+        cases = {c["date"]: c for s in semaines for c in s}
+        jour_mixte = cases[date(2026, 3, 10)]
+        self.assertEqual(jour_mixte["nb"], 2)
+        self.assertTrue(jour_mixte["a_cycle_1"])
+        self.assertTrue(jour_mixte["a_cycle_2"])
+
+        jour_cycle2 = cases[date(2026, 3, 24)]
+        self.assertEqual(jour_cycle2["nb"], 1)
+        self.assertFalse(jour_cycle2["a_cycle_1"])
+
+        self.assertEqual(cases[date(2026, 3, 11)]["nb"], 0)
+
+    def test_calendrier_semaines_commencent_lundi(self):
+        semaines = calendrier_mois([], 2026, 3, today=date(2026, 3, 1))
+        for semaine in semaines:
+            self.assertEqual(len(semaine), 7)
+            self.assertEqual(semaine[0]["date"].weekday(), 0)   # lundi
+            self.assertEqual(semaine[-1]["date"].weekday(), 6)  # dimanche
+
+    def test_calendrier_marque_jours_hors_mois_et_aujourdhui(self):
+        semaines = calendrier_mois([], 2026, 3, today=date(2026, 3, 15))
+        cases = {c["date"]: c for s in semaines for c in s}
+        self.assertTrue(cases[date(2026, 3, 15)]["is_today"])
+        self.assertTrue(cases[date(2026, 3, 15)]["dans_le_mois"])
+        # 1er mars 2026 est un dimanche → la grille commence en février
+        self.assertFalse(cases[date(2026, 2, 23)]["dans_le_mois"])
+
+    def test_page_planning_filtre_par_mois(self):
+        User = get_user_model()
+        User.objects.create_user(
+            email="planning@exemple.com", password="Registre2025!",
+            full_name="Test", email_verified=True,
+        )
+        self.client.login(email="planning@exemple.com", password="Registre2025!")
+        futur = date.today() + timedelta(days=60)
+        make_client(nom="Client Planning", prochaine_1ere_visite=futur)
+        response = self.client.get(
+            reverse("clients:planning"),
+            {"annee": futur.year, "mois": futur.month},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Client Planning")
+
+    def test_page_planning_filtre_par_jour(self):
+        User = get_user_model()
+        User.objects.create_user(
+            email="jour@exemple.com", password="Registre2025!",
+            full_name="Test", email_verified=True,
+        )
+        self.client.login(email="jour@exemple.com", password="Registre2025!")
+        futur = date.today() + timedelta(days=60)
+        make_client(nom="Client Du Jour", prochaine_1ere_visite=futur)
+        make_client(nom="Client Autre Jour", prochaine_1ere_visite=futur + timedelta(days=1))
+        response = self.client.get(
+            reverse("clients:planning"),
+            {"annee": futur.year, "mois": futur.month, "jour": futur.isoformat()},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.context["visites"]), 1)
+        self.assertEqual(response.context["visites"][0].client.nom, "Client Du Jour")
+
+    def test_page_planning_annee_sans_visite_reste_navigable(self):
+        User = get_user_model()
+        User.objects.create_user(
+            email="nav@exemple.com", password="Registre2025!",
+            full_name="Test", email_verified=True,
+        )
+        self.client.login(email="nav@exemple.com", password="Registre2025!")
+        cible = date.today().year + 5
+        response = self.client.get(reverse("clients:planning"), {"annee": cible})
+        self.assertEqual(response.context["annee"], cible)
+
+
 class ClientFormRapportTests(TestCase):
     """Édition du rapport de la visite courante via le formulaire client."""
 
@@ -491,10 +636,9 @@ class ClientFormCoherenceDatesTests(TestCase):
         self.assertEqual(saved.prochaine_2eme_visite, date(2026, 7, 15))
 
     def test_valeurs_saisies_dans_les_champs_calcules_ignorees(self):
-        # Champs calculés : les valeurs postées sont simplement écrasées
+        # Prochaines visites : champs calculés, les valeurs postées sont écrasées
         form = self.form_with_dates(
             derniere_1ere_visite="2025-01-15",
-            derniere_2eme_visite="2025-08-01",
             prochaine_1ere_visite="2026-02-15",
             prochaine_2eme_visite="2026-08-01",
         )
@@ -503,6 +647,39 @@ class ClientFormCoherenceDatesTests(TestCase):
         self.assertEqual(saved.derniere_2eme_visite, date(2025, 7, 15))
         self.assertEqual(saved.prochaine_1ere_visite, date(2026, 1, 15))
         self.assertEqual(saved.prochaine_2eme_visite, date(2026, 7, 15))
+
+    def test_2eme_visite_saisie_manuellement_est_conservee(self):
+        # Décalage de planning : la date saisie prime sur le calcul par défaut
+        form = self.form_with_dates(
+            derniere_1ere_visite="2025-01-15",
+            derniere_2eme_visite="2025-08-01",
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        saved = form.save()
+        self.assertEqual(saved.derniere_2eme_visite, date(2025, 8, 1))
+        # La prochaine 2ème visite suit la date saisie, pas le défaut
+        self.assertEqual(saved.prochaine_2eme_visite, date(2026, 8, 1))
+        self.assertEqual(saved.prochaine_1ere_visite, date(2026, 1, 15))
+
+    def test_2eme_visite_videe_revient_au_defaut(self):
+        client = make_client(
+            derniere_1ere_visite=date(2025, 1, 15),
+            derniere_2eme_visite=date(2025, 8, 1),
+        )
+        form = ClientForm(
+            {
+                "nom": client.nom, "adresse": client.adresse,
+                "numero_abonnement": client.numero_abonnement,
+                "status": client.status, "payement": client.payement,
+                "decharge_facture": client.decharge_facture,
+                "derniere_1ere_visite": "2025-01-15",
+                # 2ème visite laissée vide → recalcul 1ère visite + 6 mois
+            },
+            instance=client,
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        saved = form.save()
+        self.assertEqual(saved.derniere_2eme_visite, date(2025, 7, 15))
 
     def test_fin_de_mois_ajustee(self):
         # 31 août + 6 mois → 28 février (jour ramené à la fin du mois)

@@ -76,8 +76,12 @@
       </a>
       <nav class="flex items-center gap-1 sm:gap-2">
         <a href="{% url 'clients:client_list' %}"
-           class="rounded px-3 py-2 text-sm font-medium {% if request.resolver_match.url_name != 'alert_list' %}bg-white/15 text-white{% else %}text-white/70 hover:bg-white/10 hover:text-white{% endif %}">
+           class="rounded px-3 py-2 text-sm font-medium {% if request.resolver_match.url_name != 'alert_list' and request.resolver_match.url_name != 'planning' %}bg-white/15 text-white{% else %}text-white/70 hover:bg-white/10 hover:text-white{% endif %}">
           Tableau clients
+        </a>
+        <a href="{% url 'clients:planning' %}"
+           class="rounded px-3 py-2 text-sm font-medium {% if request.resolver_match.url_name == 'planning' %}bg-white/15 text-white{% else %}text-white/70 hover:bg-white/10 hover:text-white{% endif %}">
+          Planning
         </a>
         <a href="{% url 'clients:alert_list' %}"
            class="relative flex items-center gap-2 rounded px-3 py-2 text-sm font-medium {% if request.resolver_match.url_name == 'alert_list' %}bg-white/15 text-white{% else %}text-white/70 hover:bg-white/10 hover:text-white{% endif %}">

@@ -141,8 +141,9 @@
         </div>
       </div>
       <p class="border-t border-slate-100 px-5 py-3 text-xs text-slate-500">
-        Seule la « Dernière 1ère visite » se saisit — le reste est calculé automatiquement :
-        2ème visite = + 6 mois ; prochaines visites = dernière visite + 1 an.
+        La « Dernière 2ème visite » est pré-calculée (1ère visite + 6 mois) mais reste
+        modifiable en cas de décalage. Les prochaines visites sont calculées
+        automatiquement : dernière visite du cycle + 1 an.
       </p>
     </section>
 
@@ -288,12 +289,10 @@
   // (mêmes règles que ClientForm.clean() côté serveur, qui reste la référence)
   (function () {
     const d1Input = document.getElementById("id_derniere_1ere_visite");
+    const d2Input = document.getElementById("id_derniere_2eme_visite");
+    const p1Input = document.getElementById("id_prochaine_1ere_visite");
+    const p2Input = document.getElementById("id_prochaine_2eme_visite");
     if (!d1Input) return;
-    const targets = {
-      id_derniere_2eme_visite: 6,
-      id_prochaine_1ere_visite: 12,
-      id_prochaine_2eme_visite: 18,
-    };
 
     function addMonths(iso, months) {
       const [y, m, d] = iso.split("-").map(Number);
@@ -309,15 +308,26 @@
       );
     }
 
-    function refresh() {
-      for (const [id, months] of Object.entries(targets)) {
-        const input = document.getElementById(id);
-        if (input) input.value = d1Input.value ? addMonths(d1Input.value, months) : "";
-      }
+    // La 2ème visite se recalcule (1ère + 6 mois) quand la 1ère change,
+    // mais reste modifiable : les prochaines visites suivent la valeur saisie
+    function refreshFromD1() {
+      if (p1Input) p1Input.value = d1Input.value ? addMonths(d1Input.value, 12) : "";
+      if (d2Input) d2Input.value = d1Input.value ? addMonths(d1Input.value, 6) : "";
+      refreshFromD2();
     }
 
-    d1Input.addEventListener("input", refresh);
-    d1Input.addEventListener("change", refresh);
+    function refreshFromD2() {
+      if (!p2Input) return;
+      const d2 = d2Input ? d2Input.value : "";
+      p2Input.value = d2 ? addMonths(d2, 12) : "";
+    }
+
+    d1Input.addEventListener("input", refreshFromD1);
+    d1Input.addEventListener("change", refreshFromD1);
+    if (d2Input) {
+      d2Input.addEventListener("input", refreshFromD2);
+      d2Input.addEventListener("change", refreshFromD2);
+    }
   })();
 
   // Affiche la date paiement / décharge quand le statut passe à « Oui »

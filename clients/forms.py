@@ -91,9 +91,9 @@ class ClientForm(forms.ModelForm):
             self.fields[name].widget = forms.DateInput(
                 attrs={"type": "date", "class": DATE_INPUT}, format="%Y-%m-%d"
             )
-        # Seule la dernière 1ère visite se saisit : les trois autres dates
-        # sont calculées automatiquement dans clean()
-        self.fields["derniere_2eme_visite"].disabled = True
+        # Les prochaines visites sont calculées automatiquement dans clean().
+        # La dernière 2ème visite est pré-calculée (1ère visite + 6 mois) mais
+        # reste modifiable pour couvrir les décalages de planning.
         self.fields["prochaine_1ere_visite"].disabled = True
         self.fields["prochaine_2eme_visite"].disabled = True
 
@@ -115,7 +115,13 @@ class ClientForm(forms.ModelForm):
     def clean(self):
         cleaned = super().clean()
         d1 = cleaned.get("derniere_1ere_visite")
-        d2 = d1 + relativedelta(months=6) if d1 else None
+        # 2ème visite : par défaut 6 mois après la 1ère, mais une date saisie
+        # manuellement (décalage de planning) est conservée telle quelle
+        d2 = cleaned.get("derniere_2eme_visite")
+        if d2 is None and d1:
+            d2 = d1 + relativedelta(months=6)
+        elif d1 is None:
+            d2 = None
         cleaned["derniere_2eme_visite"] = d2
         cleaned["prochaine_1ere_visite"] = (
             d1 + relativedelta(years=1) if d1 else None
