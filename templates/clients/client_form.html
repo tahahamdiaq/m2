@@ -78,7 +78,7 @@
             {{ form.payement }}
             <div id="wrap_date_paiement_facture" class="mt-3" {% if form.payement.value != "Oui" %}hidden{% endif %}>
               <label class="mb-1 block text-sm font-medium text-slate-700">{{ form.date_paiement_facture.label }}</label>
-              {{ form.date_paiement_facture }}
+              {{ form.date_paiement_facture }}<p id="err_date_paiement_facture" class="mt-1 text-xs text-rouge" {% if not form.date_paiement_facture.errors %}hidden{% endif %}>{% if form.date_paiement_facture.errors %}{{ form.date_paiement_facture.errors|first }}{% endif %}</p>
             </div>
           </div>
           <div>
@@ -86,7 +86,7 @@
             {{ form.decharge_facture }}
             <div id="wrap_date_decharge_facture" class="mt-3" {% if form.decharge_facture.value != "Oui" %}hidden{% endif %}>
               <label class="mb-1 block text-sm font-medium text-slate-700">{{ form.date_decharge_facture.label }}</label>
-              {{ form.date_decharge_facture }}
+              {{ form.date_decharge_facture }}<p id="err_date_decharge_facture" class="mt-1 text-xs text-rouge" {% if not form.date_decharge_facture.errors %}hidden{% endif %}>{% if form.date_decharge_facture.errors %}{{ form.date_decharge_facture.errors|first }}{% endif %}</p>
             </div>
           </div>
         </div>
@@ -129,7 +129,7 @@
         </div>
         <div>
           <label class="mb-1 block text-sm font-medium text-slate-700">{{ form.prochaine_1ere_visite.label }}</label>
-          {{ form.prochaine_1ere_visite }}{% if form.prochaine_1ere_visite.errors %}<p class="mt-1 text-xs text-rouge">{{ form.prochaine_1ere_visite.errors|first }}</p>{% endif %}
+          {{ form.prochaine_1ere_visite }}<p id="err_prochaine_1ere_visite" class="mt-1 text-xs text-rouge" {% if not form.prochaine_1ere_visite.errors %}hidden{% endif %}>{% if form.prochaine_1ere_visite.errors %}{{ form.prochaine_1ere_visite.errors|first }}{% endif %}</p>
         </div>
         <div>
           <label class="mb-1 block text-sm font-medium text-slate-700">{{ form.derniere_2eme_visite.label }}</label>
@@ -137,13 +137,13 @@
         </div>
         <div>
           <label class="mb-1 block text-sm font-medium text-slate-700">{{ form.prochaine_2eme_visite.label }}</label>
-          {{ form.prochaine_2eme_visite }}{% if form.prochaine_2eme_visite.errors %}<p class="mt-1 text-xs text-rouge">{{ form.prochaine_2eme_visite.errors|first }}</p>{% endif %}
+          {{ form.prochaine_2eme_visite }}<p id="err_prochaine_2eme_visite" class="mt-1 text-xs text-rouge" {% if not form.prochaine_2eme_visite.errors %}hidden{% endif %}>{% if form.prochaine_2eme_visite.errors %}{{ form.prochaine_2eme_visite.errors|first }}{% endif %}</p>
         </div>
       </div>
       <p class="border-t border-slate-100 px-5 py-3 text-xs text-slate-500">
-        La « Dernière 2ème visite » est pré-calculée (1ère visite + 6 mois) mais reste
-        modifiable en cas de décalage. Les prochaines visites sont calculées
-        automatiquement : dernière visite du cycle + 1 an.
+        Les visites s'enchaînent tous les 6 mois : modifier une date recalcule
+        automatiquement toutes les suivantes. Chaque date reste modifiable en cas
+        de décalage, à condition d'être au moins 6 mois après la précédente.
       </p>
     </section>
 
@@ -161,20 +161,28 @@
           <div>
             <label class="mb-1 block text-sm font-medium text-slate-700">{{ form.rapport_inspecteurs.label }}</label>
             {{ form.rapport_inspecteurs }}
+            <div id="wrap_date_remise_inspecteurs" class="mt-3" {% if form.rapport_inspecteurs.value != "Remis" %}hidden{% endif %}>
+              <label class="mb-1 block text-sm font-medium text-slate-700">{{ form.date_remise_inspecteurs.label }}</label>
+              {{ form.date_remise_inspecteurs }}
+            </div>
           </div>
           <div>
-            <label class="mb-1 block text-sm font-medium text-slate-700">{{ form.date_remise_inspecteurs.label }}</label>
-            {{ form.date_remise_inspecteurs }}
-            <p class="mt-1 text-xs text-slate-500">Renseignée automatiquement quand le rapport passe à « Remis » (démarre le délai de 15 jours).</p>
+            <label class="mb-1 block text-sm font-medium text-slate-700">{{ form.deadline_inspecteurs.label }}</label>
+            {{ form.deadline_inspecteurs }}
+            <p class="mt-1 text-xs text-slate-500">Lundi de la semaine suivant la visite.</p>
           </div>
           <div>
             <label class="mb-1 block text-sm font-medium text-slate-700">{{ form.rapport_assistante.label }}</label>
             {{ form.rapport_assistante }}
+            <div id="wrap_date_remise_assistante" class="mt-3" {% if form.rapport_assistante.value != "Remis" %}hidden{% endif %}>
+              <label class="mb-1 block text-sm font-medium text-slate-700">{{ form.date_remise_assistante.label }}</label>
+              {{ form.date_remise_assistante }}
+            </div>
           </div>
           <div>
-            <label class="mb-1 block text-sm font-medium text-slate-700">{{ form.date_remise_assistante.label }}</label>
-            {{ form.date_remise_assistante }}
-            <p class="mt-1 text-xs text-slate-500">Renseignée automatiquement quand le rapport assistante passe à « Remis ».</p>
+            <label class="mb-1 block text-sm font-medium text-slate-700">{{ form.deadline_assistante.label }}</label>
+            {{ form.deadline_assistante }}
+            <p class="mt-1 text-xs text-slate-500">Date de remise inspecteurs + 15 jours.</p>
           </div>
         </div>
         <p class="border-t border-slate-100 px-5 py-3 text-xs text-slate-500">
@@ -308,34 +316,91 @@
       );
     }
 
-    // La 2ème visite se recalcule (1ère + 6 mois) quand la 1ère change,
-    // mais reste modifiable : les prochaines visites suivent la valeur saisie
-    function refreshFromD1() {
-      if (p1Input) p1Input.value = d1Input.value ? addMonths(d1Input.value, 12) : "";
-      if (d2Input) d2Input.value = d1Input.value ? addMonths(d1Input.value, 6) : "";
-      refreshFromD2();
+    const err1 = document.getElementById("err_prochaine_1ere_visite");
+    const err2 = document.getElementById("err_prochaine_2eme_visite");
+
+    function fr(iso) { const [y, m, d] = iso.split("-"); return d + "/" + m + "/" + y; }
+
+    // Message d'erreur instantané si une date saisie ne respecte pas l'écart de 6 mois
+    function check(input, errEl, prevInput, label) {
+      if (!input || !errEl) return;
+      let msg = "";
+      if (input.value && prevInput && prevInput.value) {
+        const min = addMonths(prevInput.value, 6);
+        if (input.value < min) {
+          msg = "Doit être au moins 6 mois après " + label + " (à partir du " + fr(min) + ").";
+        }
+      }
+      errEl.textContent = msg;
+      errEl.hidden = !msg;
+      input.setCustomValidity(msg);
+      input.classList.toggle("border-rouge", !!msg);
     }
 
-    function refreshFromD2() {
-      if (!p2Input) return;
+    function validateAll() {
+      check(p1Input, err1, d2Input, "la dernière 2ème visite");
+      check(p2Input, err2, p1Input, "la prochaine 1ère visite");
+    }
+
+    // Chaîne à +6 mois : dernière 1ère -> dernière 2ème -> prochaine 1ère -> prochaine 2ème
+    function refreshP2() {
+      if (p2Input) p2Input.value = p1Input && p1Input.value ? addMonths(p1Input.value, 6) : "";
+      validateAll();
+    }
+
+    function refreshP1() {
       const d2 = d2Input ? d2Input.value : "";
-      p2Input.value = d2 ? addMonths(d2, 12) : "";
+      if (p1Input) p1Input.value = d2 ? addMonths(d2, 6) : "";
+      refreshP2();
     }
 
-    d1Input.addEventListener("input", refreshFromD1);
-    d1Input.addEventListener("change", refreshFromD1);
-    if (d2Input) {
-      d2Input.addEventListener("input", refreshFromD2);
-      d2Input.addEventListener("change", refreshFromD2);
+    // Modifier la 1ère recalcule la 2ème et les suivantes
+    function refreshFromD1() {
+      if (d2Input) d2Input.value = d1Input.value ? addMonths(d1Input.value, 6) : "";
+      refreshP1();
     }
+
+    // Modifier la 2ème recalcule les prochaines ;
+    // un champ vidé reprend la valeur calculée (1ère + 6 mois)
+    function refreshFromD2(e) {
+      if (e && e.type === "change" && d2Input && !d2Input.value && d1Input.value) {
+        d2Input.value = addMonths(d1Input.value, 6);
+      }
+      refreshP1();
+    }
+
+    // Modifier la prochaine 1ère recalcule la prochaine 2ème
+    function refreshFromP1(e) {
+      if (e && e.type === "change" && !p1Input.value && d2Input && d2Input.value) {
+        p1Input.value = addMonths(d2Input.value, 6);
+      }
+      refreshP2();
+    }
+
+    function refreshFromP2(e) {
+      if (e && e.type === "change" && !p2Input.value && p1Input.value) {
+        p2Input.value = addMonths(p1Input.value, 6);
+      }
+      validateAll();
+    }
+
+    ["input", "change"].forEach(function (ev) {
+      d1Input.addEventListener(ev, refreshFromD1);
+      if (d2Input) d2Input.addEventListener(ev, refreshFromD2);
+      if (p1Input) p1Input.addEventListener(ev, refreshFromP1);
+      if (p2Input) p2Input.addEventListener(ev, refreshFromP2);
+    });
+    validateAll();
   })();
 
-  // Affiche la date paiement / décharge quand le statut passe à « Oui »
-  // (pré-remplie au jour même, modifiable)
+  // Affiche la date paiement / décharge (statut « Oui ») ou la date exacte de
+  // remise d'un rapport (statut « Remis ») ; pré-remplie au jour même, modifiable
   (function () {
     const pairs = [
       ["id_payement", "wrap_date_paiement_facture", "id_date_paiement_facture"],
       ["id_decharge_facture", "wrap_date_decharge_facture", "id_date_decharge_facture"],
+      ["id_rapport_inspecteurs", "wrap_date_remise_inspecteurs", "id_date_remise_inspecteurs", "Remis"],
+      ["id_rapport_assistante", "wrap_date_remise_assistante", "id_date_remise_assistante", "Remis"],
     ];
     function todayIso() {
       const d = new Date();
@@ -345,18 +410,72 @@
         String(d.getDate()).padStart(2, "0")
       );
     }
-    for (const [selId, wrapId, dateId] of pairs) {
+    for (const [selId, wrapId, dateId, onValue = "Oui"] of pairs) {
       const sel = document.getElementById(selId);
       const wrap = document.getElementById(wrapId);
       const input = document.getElementById(dateId);
       if (!sel || !wrap || !input) continue;
       sel.addEventListener("change", function () {
-        const oui = sel.value === "Oui";
+        const oui = sel.value === onValue;
         wrap.hidden = !oui;
         if (oui && !input.value) input.value = todayIso();
         if (!oui) input.value = "";
       });
     }
+  })();
+
+  // Paiement / décharge de la facture : jamais avant la remise du rapport assistante
+  (function () {
+    const selA = document.getElementById("id_rapport_assistante");
+    const remiseA = document.getElementById("id_date_remise_assistante");
+    if (!selA || !remiseA) return;
+    const checks = [
+      ["id_payement", "id_date_paiement_facture", "err_date_paiement_facture", "de paiement"],
+      ["id_decharge_facture", "id_date_decharge_facture", "err_date_decharge_facture", "de décharge"],
+    ].map(function (c) {
+      return { sel: document.getElementById(c[0]), input: document.getElementById(c[1]),
+               err: document.getElementById(c[2]), label: c[3] };
+    }).filter(function (c) { return c.sel && c.input && c.err; });
+    function fr(iso) { const [y, m, d] = iso.split("-"); return d + "/" + m + "/" + y; }
+    function validate() {
+      checks.forEach(function (c) {
+        let msg = "";
+        if (selA.value === "Remis" && remiseA.value && c.sel.value === "Oui" &&
+            c.input.value && c.input.value < remiseA.value) {
+          msg = "La date " + c.label + " de la facture ne peut pas être avant la remise du rapport assistante (" + fr(remiseA.value) + ").";
+        }
+        c.err.textContent = msg;
+        c.err.hidden = !msg;
+        c.input.setCustomValidity(msg);
+        c.input.classList.toggle("border-rouge", !!msg);
+      });
+    }
+    const watched = [selA, remiseA].concat(checks.map(function (c) { return c.sel; }),
+                                          checks.map(function (c) { return c.input; }));
+    watched.forEach(function (el) {
+      ["input", "change"].forEach(function (ev) {
+        el.addEventListener(ev, function () { setTimeout(validate, 0); });
+      });
+    });
+    validate();
+  })();
+
+  // Deadline assistante = date de remise inspecteurs + 15 jours (en direct)
+  (function () {
+    const remise = document.getElementById("id_date_remise_inspecteurs");
+    const deadline = document.getElementById("id_deadline_assistante");
+    const sel = document.getElementById("id_rapport_inspecteurs");
+    if (!remise || !deadline || !sel) return;
+    function refresh() {
+      if (sel.value !== "Remis" || !remise.value) { deadline.value = ""; return; }
+      const [y, m, d] = remise.value.split("-").map(Number);
+      const dt = new Date(Date.UTC(y, m - 1, d + 15));
+      deadline.value = dt.toISOString().slice(0, 10);
+    }
+    ["input", "change"].forEach(function (ev) {
+      remise.addEventListener(ev, refresh);
+      sel.addEventListener(ev, function () { setTimeout(refresh, 0); });
+    });
   })();
 </script>
 

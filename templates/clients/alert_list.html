@@ -37,6 +37,10 @@
          class="rounded px-3 py-1.5 text-sm font-medium {% if cat == 'assistante' %}bg-rose text-white{% else %}border border-rose/40 bg-white text-rose hover:bg-rose/5{% endif %}">
       Assistante <span class="font-mono text-xs">({{ counts.assistante }})</span>
       </a>
+      <a href="{% url 'clients:alert_list' %}?cat=facturation{% if kind %}&kind={{ kind }}{% endif %}"
+         class="rounded px-3 py-1.5 text-sm font-medium {% if cat == 'facturation' %}bg-marine text-white{% else %}border border-marine/40 bg-white text-marine hover:bg-marine/5{% endif %}">
+      Facturation <span class="font-mono text-xs">({{ counts.facturation }})</span>
+      </a>
       <a href="{% url 'clients:alert_list' %}?cat=visite{% if kind %}&kind={{ kind }}{% endif %}"
          class="rounded px-3 py-1.5 text-sm font-medium {% if cat == 'visite' %}bg-sarcelle text-white{% else %}border border-sarcelle/40 bg-white text-sarcelle hover:bg-sarcelle/5{% endif %}">
       Général <span class="font-mono text-xs">({{ counts.visite }})</span>

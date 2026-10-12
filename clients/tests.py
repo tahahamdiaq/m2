@@ -463,6 +463,47 @@ class ClientFormRapportTests(TestCase):
         self.assertEqual(visite.rapport_inspecteurs, "Remis")
         self.assertEqual(visite.date_remise_inspecteurs, date.today())
 
+    def test_date_exacte_de_remise_saisie_est_conservee(self):
+        client = make_client(derniere_1ere_visite=date(2025, 6, 4))
+        make_visite(client, date(2025, 6, 4))
+        form = ClientForm(
+            self.base_data(
+                client,
+                rapport_inspecteurs="Remis", date_remise_inspecteurs="2025-06-09",
+                rapport_assistante="Remis", date_remise_assistante="2025-06-18",
+            ),
+            instance=client,
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        form.save()
+        visite = client.visites.get(date_visite=date(2025, 6, 4))
+        self.assertEqual(visite.date_remise_inspecteurs, date(2025, 6, 9))
+        self.assertEqual(visite.date_remise_assistante, date(2025, 6, 18))
+
+    def test_facture_avant_remise_assistante_refusee(self):
+        client = make_client(derniere_1ere_visite=date(2025, 6, 4))
+        make_visite(client, date(2025, 6, 4))
+        base = self.base_data(
+            client, rapport_inspecteurs="Remis", date_remise_inspecteurs="2025-06-09",
+            rapport_assistante="Remis", date_remise_assistante="2025-06-18",
+            payement="Oui", decharge_facture="Oui",
+        )
+        form = ClientForm({**base, "date_paiement_facture": "2025-06-17",
+                           "date_decharge_facture": "2025-06-10"}, instance=client)
+        self.assertFalse(form.is_valid())
+        self.assertIn("date_paiement_facture", form.errors)
+        self.assertIn("date_decharge_facture", form.errors)
+        ok = ClientForm({**base, "date_paiement_facture": "2025-06-18",
+                         "date_decharge_facture": "2025-06-25"}, instance=client)
+        self.assertTrue(ok.is_valid(), ok.errors)
+
+    def test_deadlines_calculees_pour_l_affichage(self):
+        client = make_client(derniere_1ere_visite=date(2025, 6, 4))
+        make_visite(client, date(2025, 6, 4), date_remise_inspecteurs=date(2025, 6, 9))
+        form = ClientForm(instance=client)
+        self.assertEqual(form.fields["deadline_inspecteurs"].initial, date(2025, 6, 9))
+        self.assertEqual(form.fields["deadline_assistante"].initial, date(2025, 6, 24))
+
     def test_retour_a_non_remis_efface_la_date(self):
         client = make_client(derniere_1ere_visite=date(2025, 6, 4))
         make_visite(
@@ -635,18 +676,27 @@ class ClientFormCoherenceDatesTests(TestCase):
         self.assertEqual(saved.prochaine_1ere_visite, date(2026, 1, 15))
         self.assertEqual(saved.prochaine_2eme_visite, date(2026, 7, 15))
 
-    def test_valeurs_saisies_dans_les_champs_calcules_ignorees(self):
-        # Prochaines visites : champs calculés, les valeurs postées sont écrasées
+    def test_prochaines_saisies_valides_sont_conservees(self):
         form = self.form_with_dates(
             derniere_1ere_visite="2025-01-15",
             prochaine_1ere_visite="2026-02-15",
-            prochaine_2eme_visite="2026-08-01",
+            prochaine_2eme_visite="2026-09-01",
         )
         self.assertTrue(form.is_valid(), form.errors)
         saved = form.save()
         self.assertEqual(saved.derniere_2eme_visite, date(2025, 7, 15))
-        self.assertEqual(saved.prochaine_1ere_visite, date(2026, 1, 15))
-        self.assertEqual(saved.prochaine_2eme_visite, date(2026, 7, 15))
+        self.assertEqual(saved.prochaine_1ere_visite, date(2026, 2, 15))
+        self.assertEqual(saved.prochaine_2eme_visite, date(2026, 9, 1))
+
+    def test_prochaines_saisies_trop_proches_refusees(self):
+        form = self.form_with_dates(
+            derniere_1ere_visite="2025-01-15",
+            prochaine_1ere_visite="2025-12-01",   # < 2ème (15/07) + 6 mois
+            prochaine_2eme_visite="2026-03-01",
+        )
+        self.assertFalse(form.is_valid())
+        self.assertIn("prochaine_1ere_visite", form.errors)
+        self.assertIn("prochaine_2eme_visite", form.errors)
 
     def test_2eme_visite_saisie_manuellement_est_conservee(self):
         # Décalage de planning : la date saisie prime sur le calcul par défaut
@@ -657,9 +707,9 @@ class ClientFormCoherenceDatesTests(TestCase):
         self.assertTrue(form.is_valid(), form.errors)
         saved = form.save()
         self.assertEqual(saved.derniere_2eme_visite, date(2025, 8, 1))
-        # La prochaine 2ème visite suit la date saisie, pas le défaut
+        # Les prochaines visites s'enchaînent (+6 mois) depuis la date saisie
+        self.assertEqual(saved.prochaine_1ere_visite, date(2026, 2, 1))
         self.assertEqual(saved.prochaine_2eme_visite, date(2026, 8, 1))
-        self.assertEqual(saved.prochaine_1ere_visite, date(2026, 1, 15))
 
     def test_2eme_visite_videe_revient_au_defaut(self):
         client = make_client(
@@ -719,3 +769,163 @@ class ClientFormCoherenceDatesTests(TestCase):
         self.assertTrue(
             saved.visites.filter(date_visite=date(2025, 1, 15)).exists()
         )
+
+
+class ChaineDesVisitesTests(TestCase):
+    """dernière 1ère -> dernière 2ème -> prochaine 1ère -> prochaine 2ème (+6 mois)."""
+
+    def _submit(self, client=None, **dates):
+        base = {"nom": "X", "adresse": "Y", "numero_abonnement": "1/2020",
+                "status": "Actif", "payement": "Non", "decharge_facture": "Non"}
+        if client is not None:
+            base.update({
+                k: getattr(client, k).isoformat()
+                for k in ("derniere_1ere_visite", "derniere_2eme_visite",
+                          "prochaine_1ere_visite", "prochaine_2eme_visite")
+                if getattr(client, k)
+            })
+        base.update({k: v for k, v in dates.items() if v is not None})
+        form = ClientForm(base, instance=client)
+        self.assertTrue(form.is_valid(), form.errors)
+        return form.save()
+
+    def _chain(self, c):
+        return (c.derniere_1ere_visite, c.derniere_2eme_visite,
+                c.prochaine_1ere_visite, c.prochaine_2eme_visite)
+
+    def test_creation_calcule_toute_la_chaine(self):
+        c = self._submit(derniere_1ere_visite="2025-06-04")
+        self.assertEqual(self._chain(c), (
+            date(2025, 6, 4), date(2025, 12, 4), date(2026, 6, 4), date(2026, 12, 4)))
+
+    def test_modifier_la_1ere_recalcule_tout(self):
+        c = self._submit(derniere_1ere_visite="2025-06-04")
+        c = self._submit(c, derniere_1ere_visite="2025-07-10")
+        self.assertEqual(self._chain(c), (
+            date(2025, 7, 10), date(2026, 1, 10), date(2026, 7, 10), date(2027, 1, 10)))
+
+    def test_modifier_la_2eme_recalcule_les_prochaines_seulement(self):
+        c = self._submit(derniere_1ere_visite="2025-06-04")
+        c = self._submit(c, derniere_2eme_visite="2026-01-15")
+        self.assertEqual(self._chain(c), (
+            date(2025, 6, 4), date(2026, 1, 15), date(2026, 7, 15), date(2027, 1, 15)))
+
+    def test_1ere_et_2eme_modifiees_la_2eme_saisie_est_conservee(self):
+        c = self._submit(derniere_1ere_visite="2025-06-04")
+        c = self._submit(c, derniere_1ere_visite="2025-07-10",
+                         derniere_2eme_visite="2026-02-20")
+        self.assertEqual(self._chain(c), (
+            date(2025, 7, 10), date(2026, 2, 20), date(2026, 8, 20), date(2027, 2, 20)))
+
+    def test_2eme_vide_reprend_la_valeur_calculee(self):
+        c = self._submit(derniere_1ere_visite="2025-06-04")
+        c = self._submit(c, derniere_2eme_visite="")
+        self.assertEqual(c.derniere_2eme_visite, date(2025, 12, 4))
+
+    def test_modifier_la_prochaine_1ere_recalcule_la_prochaine_2eme(self):
+        c = self._submit(derniere_1ere_visite="2025-06-04")
+        c = self._submit(c, prochaine_1ere_visite="2026-07-01")
+        self.assertEqual(c.prochaine_1ere_visite, date(2026, 7, 1))
+        self.assertEqual(c.prochaine_2eme_visite, date(2027, 1, 1))
+
+    def test_prochaine_1ere_avant_6_mois_refusee(self):
+        c = self._submit(derniere_1ere_visite="2025-06-04")
+        base = {"nom": "X", "adresse": "Y", "numero_abonnement": "1/2020",
+                "status": "Actif", "payement": "Non", "decharge_facture": "Non",
+                "derniere_1ere_visite": "2025-06-04",
+                "derniere_2eme_visite": "2025-12-04",
+                "prochaine_1ere_visite": "2026-05-01",
+                "prochaine_2eme_visite": "2026-12-04"}
+        form = ClientForm(base, instance=c)
+        self.assertFalse(form.is_valid())
+        self.assertIn("prochaine_1ere_visite", form.errors)
+
+    def test_sans_1ere_tout_est_vide(self):
+        c = self._submit(derniere_1ere_visite="2025-06-04")
+        c = self._submit(c, derniere_1ere_visite="", derniere_2eme_visite="")
+        self.assertEqual(self._chain(c), (None, None, None, None))
+
+    def test_rien_de_modifie_dates_identiques(self):
+        c = make_client(
+            derniere_1ere_visite=date(2025, 6, 4),
+            derniere_2eme_visite=date(2025, 12, 4),
+            prochaine_1ere_visite=date(2026, 5, 1),
+            prochaine_2eme_visite=date(2026, 11, 1),
+        )
+        before = self._chain(c)
+        c = self._submit(c)
+        self.assertEqual(self._chain(c), before)
+
+    def test_fin_de_mois(self):
+        c = self._submit(derniere_1ere_visite="2025-08-31")
+        self.assertEqual(c.derniere_2eme_visite, date(2026, 2, 28))
+
+
+class PlanningRetardEtPaginationTests(TestCase):
+    def test_retards_en_tete_et_pagination_par_30_jours(self):
+        from .services.planning import (
+            get_visites_en_retard, get_visites_prevues, paginer_par_jours,
+        )
+        today = date(2025, 6, 20)
+        # visite passée, rapport non remis, échéance dépassée → en retard
+        retard = make_client(nom="Retard", derniere_1ere_visite=date(2025, 6, 2))
+        # 35 jours distincts de visites à venir
+        for i in range(35):
+            make_client(nom=f"C{i:02d}", derniere_1ere_visite=today + timedelta(days=i + 1))
+        en_retard = get_visites_en_retard(today=today)
+        self.assertEqual([v.client for v in en_retard], [retard])
+        self.assertTrue(en_retard[0].is_retard)
+
+        prevues = get_visites_prevues(today=today)
+        page1, rows1 = paginer_par_jours(prevues, 1, 30)
+        page2, rows2 = paginer_par_jours(prevues, 2, 30)
+        self.assertEqual(page1.paginator.num_pages, 2)
+        self.assertEqual(len({v.date_visite for v in rows1}), 30)
+        self.assertEqual(len({v.date_visite for v in rows2}), 5)
+        self.assertNotIn(retard, [v.client for v in rows1 + rows2])
+
+
+class FactureAlertTests(TestCase):
+    """Étape C — facturation 15 jours après la remise du rapport assistante."""
+
+    def _client(self, **visite_kwargs):
+        client = make_client(derniere_1ere_visite=date(2025, 6, 4))
+        make_visite(
+            client, date(2025, 6, 4),
+            rapport_inspecteurs="Remis", date_remise_inspecteurs=date(2025, 6, 9),
+            rapport_assistante="Remis", date_remise_assistante=date(2025, 6, 20),
+            **visite_kwargs,
+        )
+        return client
+
+    def _facture(self, client, today):
+        return [a for a in get_client_alerts(client, today=today)
+                if a.categorie == "facturation"]
+
+    def test_rappels_paiement_et_decharge_pendant_15_jours(self):
+        alerts = self._facture(self._client(), date(2025, 6, 25))
+        self.assertEqual(sorted(a.type for a in alerts), [6, 8])
+        self.assertTrue(all(not a.is_alerte and a.days == 10 for a in alerts))
+
+    def test_alerte_au_dela_de_15_jours(self):
+        alerts = self._facture(self._client(), date(2025, 7, 8))  # limite 5 juillet
+        self.assertEqual(sorted(a.type for a in alerts), [7, 9])
+        self.assertTrue(all(a.is_alerte and a.days == 3 for a in alerts))
+
+    def test_paiement_renseigne_ne_reste_que_la_decharge(self):
+        client = self._client(date_paiement_facture=date(2025, 6, 22))
+        alerts = self._facture(client, date(2025, 6, 25))
+        self.assertEqual([a.type for a in alerts], [8])
+
+    def test_rien_si_les_deux_dates_renseignees(self):
+        client = self._client(
+            date_paiement_facture=date(2025, 6, 22),
+            date_decharge_facture=date(2025, 6, 23),
+        )
+        self.assertEqual(self._facture(client, date(2025, 8, 1)), [])
+
+    def test_rien_tant_que_rapport_assistante_non_remis(self):
+        client = make_client(derniere_1ere_visite=date(2025, 6, 4))
+        make_visite(client, date(2025, 6, 4), rapport_inspecteurs="Remis",
+                    date_remise_inspecteurs=date(2025, 6, 9))
+        self.assertEqual(self._facture(client, date(2025, 8, 1)), [])

@@ -169,11 +169,14 @@
     </thead>
     <tbody>
       {% for v in visites %}
-        <tr class="cursor-pointer transition-colors hover:bg-fond/70"
+        <tr class="cursor-pointer transition-colors {% if v.is_retard %}bg-rouge/10 hover:bg-rouge/20{% else %}hover:bg-fond/70{% endif %}"
+            {% if v.is_retard %}style="box-shadow: inset 3px 0 0 #C0453D;"{% endif %}
             onclick="window.location='{% url 'clients:client_detail' v.client.pk %}'">
-          <td class="px-3 py-2 font-mono text-xs font-medium text-marine">{{ v.date_visite|date:"d/m/Y" }}</td>
+          <td class="px-3 py-2 font-mono text-xs font-medium {% if v.is_retard %}text-rouge{% else %}text-marine{% endif %}">{{ v.date_visite|date:"d/m/Y" }}</td>
           <td class="px-3 py-2">
-            {% if v.is_imminente %}
+            {% if v.is_retard %}
+              <span class="rounded-full bg-rouge/10 px-2 py-0.5 font-mono text-[11px] font-semibold text-rouge">Retard {{ v.retard_jours }} j</span>
+            {% elif v.is_imminente %}
               <span class="rounded-full bg-ambre/10 px-2 py-0.5 font-mono text-[11px] font-semibold text-ambre">J−{{ v.jours }}</span>
             {% else %}
               <span class="font-mono text-[11px] text-slate-500">J−{{ v.jours }}</span>
@@ -185,8 +188,8 @@
               {{ v.cycle_label }}
             </span>
           </td>
-          <td class="px-3 py-2 font-medium text-marine">{{ v.client.nom }}</td>
-          <td class="px-3 py-2 text-slate-600">{{ v.client.adresse }}</td>
+          <td class="px-3 py-2 font-medium {% if v.is_retard %}text-rouge{% else %}text-marine{% endif %}">{{ v.client.nom }}</td>
+          <td class="px-3 py-2 {% if v.is_retard %}text-rouge/80{% else %}text-slate-600{% endif %}">{{ v.client.adresse }}</td>
           <td class="px-3 py-2 font-mono text-xs text-slate-700">{{ v.client.numero_abonnement }}</td>
           <td class="px-3 py-2">
             <div class="flex max-w-[180px] flex-wrap gap-1">
@@ -215,5 +218,25 @@
     </tbody>
   </table>
 </div>
+
+{# --- Pagination : 30 jours de visites par page ------------------------- #}
+{% if page.paginator.num_pages > 1 %}
+<div class="mt-4 flex items-center justify-between">
+  <p class="font-mono text-xs text-slate-500">
+    Page {{ page.number }} / {{ page.paginator.num_pages }}
+    <span class="normal-case">— 30 jours de visites par page{% if en_retard %}, retards toujours en haut{% endif %}</span>
+  </p>
+  <div class="flex gap-2">
+    {% if page.has_previous %}
+      <a href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page.previous_page_number }}"
+         class="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-fond">← Précédent</a>
+    {% endif %}
+    {% if page.has_next %}
+      <a href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page.next_page_number }}"
+         class="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-fond">Suivant →</a>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
 
 {% endblock %}

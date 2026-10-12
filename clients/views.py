@@ -13,7 +13,9 @@ from .services.planning import (
     JOURS_FR,
     MOIS_FR,
     calendrier_mois,
+    get_visites_en_retard,
     get_visites_prevues,
+    paginer_par_jours,
     repartition_par_mois,
 )
 from .services.visites import sync_visites
@@ -160,6 +162,13 @@ def planning_visites(request):
     if jour_filtre:
         visites = [v for v in visites if v.date_visite == jour_filtre]
 
+    # Visites en retard : toujours en haut, hors filtres et hors pagination
+    en_retard = get_visites_en_retard(today=today)
+    # Une page = 30 jours distincts ayant des visites
+    page, visites = paginer_par_jours(visites, request.GET.get("page"), 30)
+    query = request.GET.copy()
+    query.pop("page", None)
+
     # Navigation mois précédent / suivant
     precedent = date(annee, mois_calendrier, 1) - timedelta(days=1)
     suivant = date(annee, mois_calendrier, 28) + timedelta(days=7)
@@ -168,7 +177,10 @@ def planning_visites(request):
         request,
         "clients/planning.html",
         {
-            "visites": visites,
+            "visites": en_retard + visites,
+            "en_retard": en_retard,
+            "page": page,
+            "querystring": query.urlencode(),
             "stats": stats,
             "repartition": repartition,
             "semaines": semaines,
@@ -190,7 +202,7 @@ def planning_visites(request):
 @login_required
 def alert_list(request):
     kind = request.GET.get("kind", "")  # '', 'rappel' ou 'alerte'
-    cat = request.GET.get("cat", "")    # '', 'inspecteurs', 'assistante', 'visite'
+    cat = request.GET.get("cat", "")    # '', 'inspecteurs', 'assistante', 'facturation', 'visite'
     alerts = get_all_alerts()
     counts = {
         "all": len(alerts),
@@ -199,10 +211,11 @@ def alert_list(request):
         "inspecteurs": sum(1 for a in alerts if a.categorie == "inspecteurs"),
         "assistante": sum(1 for a in alerts if a.categorie == "assistante"),
         "visite": sum(1 for a in alerts if a.categorie == "visite"),
+        "facturation": sum(1 for a in alerts if a.categorie == "facturation"),
     }
     if kind in ("rappel", "alerte"):
         alerts = [a for a in alerts if a.kind == kind]
-    if cat in ("inspecteurs", "assistante", "visite"):
+    if cat in ("inspecteurs", "assistante", "facturation", "visite"):
         alerts = [a for a in alerts if a.categorie == cat]
     return render(
         request,

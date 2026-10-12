@@ -19,6 +19,14 @@ Règles :
     Date limite: référence + 15 jours
     → type 3 (rappel) dans les 15 jours, type 4 (alerte) au-delà
 
+  Étape C — Facturation (uniquement si rapport assistante « Remis »)
+    Référence  : date_remise_assistante
+    Date limite: référence + 15 jours, pour le paiement ET pour la décharge
+                 de la facture (chacun suivi séparément, tant que sa date
+                 n'est pas renseignée sur la visite)
+    → type 6 / 8 (rappel paiement / décharge) dans les 15 jours
+    → type 7 / 9 (alerte paiement / décharge) au-delà
+
   Visite à venir
     → type 5 (rappel) à partir de 10 jours avant chaque visite programmée
       (2ème visite à venir, prochaines visites) : « il reste X jour(s) »
@@ -27,6 +35,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 
 ASSISTANTE_DELAY_DAYS = 15
+FACTURE_DELAY_DAYS = 15
 VISITE_REMINDER_DAYS = 10
 
 KIND_RAPPEL = "rappel"
@@ -57,19 +66,22 @@ class Alert:
     def categorie(self) -> str:
         return {1: "inspecteurs", 2: "inspecteurs",
                 3: "assistante", 4: "assistante",
-                5: "visite"}[self.type]
+                5: "visite",
+                6: "facturation", 7: "facturation",
+                8: "facturation", 9: "facturation"}[self.type]
 
     @property
     def categorie_label(self) -> str:
         return {"inspecteurs": "Inspecteurs", "assistante": "Assistante",
-                "visite": "Visite à venir"}[self.categorie]
+                "visite": "Visite à venir",
+                "facturation": "Facturation"}[self.categorie]
 
     @property
     def couleur(self) -> str:
         """Couleur Tailwind de la catégorie (fond et étiquette ; la gravité
         reste rouge pour les alertes, ambre pour les rappels)."""
         return {"inspecteurs": "bleu", "assistante": "rose",
-                "visite": "sarcelle"}[self.categorie]
+                "visite": "sarcelle", "facturation": "marine"}[self.categorie]
 
 
 def next_monday_deadline(visit_date: date) -> date:
@@ -143,6 +155,44 @@ def _assistante_alert(client, visite, today: date):
     )
 
 
+def _facture_alerts(client, visite, today: date) -> list[Alert]:
+    """Étape C — paiement et décharge de la facture, 15 jours après la remise
+    du rapport assistante."""
+    deadline = visite.date_remise_assistante + timedelta(days=FACTURE_DELAY_DAYS)
+    alerts = []
+    for date_field, nom, type_rappel in [
+        ("date_paiement_facture", "le paiement de la facture", 6),
+        ("date_decharge_facture", "la décharge de la facture", 8),
+    ]:
+        if getattr(visite, date_field):
+            continue
+        if today <= deadline:
+            days = (deadline - today).days
+            alerts.append(Alert(
+                client_id=client.pk, client_nom=client.nom,
+                date_visite=visite.date_visite, type=type_rappel,
+                kind=KIND_RAPPEL,
+                message=(
+                    f"Il faut régler {nom} du Client {client.nom} "
+                    f"dans {days} jour(s)"
+                ),
+                deadline=deadline, days=days,
+            ))
+        else:
+            days = (today - deadline).days
+            alerts.append(Alert(
+                client_id=client.pk, client_nom=client.nom,
+                date_visite=visite.date_visite, type=type_rappel + 1,
+                kind=KIND_ALERTE,
+                message=(
+                    f"Retard sur {nom} du Client {client.nom}, "
+                    f"retard de {days} jour(s)"
+                ),
+                deadline=deadline, days=days,
+            ))
+    return alerts
+
+
 def _upcoming_visit_alerts(client, today: date) -> list[Alert]:
     """Type 5 — rappel à partir de 10 jours avant chaque visite programmée."""
     upcoming = {
@@ -200,6 +250,9 @@ def get_client_alerts(client, today: date | None = None) -> list[Alert]:
         and visite.rapport_assistante != "Remis"
     ):
         alerts.append(_assistante_alert(client, visite, today))
+    # Étape C — facturation (seulement si rapport assistante remis)
+    if visite.rapport_assistante == "Remis" and visite.date_remise_assistante:
+        alerts.extend(_facture_alerts(client, visite, today))
     return alerts
 
 

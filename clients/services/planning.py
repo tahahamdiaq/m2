@@ -21,7 +21,12 @@ class VisitePrevue:
     client: object
     date_visite: date
     cycle: int      # 1 (1ère visite) ou 2 (2ème visite)
-    jours: int      # jours restants avant la visite
+    jours: int      # jours restants avant la visite (négatif si en retard)
+    retard_jours: int = 0   # > 0 : visite passée dont le suivi du rapport est en retard
+
+    @property
+    def is_retard(self) -> bool:
+        return self.retard_jours > 0
 
     @property
     def cycle_label(self) -> str:
@@ -30,7 +35,7 @@ class VisitePrevue:
     @property
     def is_imminente(self) -> bool:
         """Dans les 10 jours : un rappel est déjà actif (cf. alerts type 5)."""
-        return self.jours <= 10
+        return 0 <= self.jours <= 10
 
 
 def get_visites_prevues(queryset=None, today: date | None = None) -> list[VisitePrevue]:
@@ -63,6 +68,53 @@ def get_visites_prevues(queryset=None, today: date | None = None) -> list[Visite
                 )
     prevues.sort(key=lambda v: (v.date_visite, v.client.nom))
     return prevues
+
+
+def get_visites_en_retard(queryset=None, today: date | None = None) -> list[VisitePrevue]:
+    """Visites passées dont le suivi du rapport est en retard (alerte rouge).
+
+    Même définition du retard que la page Alertes (types 2 et 4) : le rapport
+    inspecteurs ou assistante n'a pas été remis dans les délais. Les plus
+    gros retards d'abord.
+    """
+    from clients.models import Client
+
+    from .alerts import get_client_alerts
+
+    if queryset is None:
+        queryset = Client.objects.all()
+    today = today or date.today()
+
+    en_retard: list[VisitePrevue] = []
+    for client in queryset:
+        for alert in get_client_alerts(client, today=today):
+            # retards de rapport seulement (pas la facturation)
+            if not alert.is_alerte or alert.categorie not in ("inspecteurs", "assistante"):
+                continue
+            d = alert.date_visite
+            cycle = 1 if d in (client.derniere_1ere_visite, client.prochaine_1ere_visite) else 2
+            en_retard.append(
+                VisitePrevue(
+                    client=client,
+                    date_visite=d,
+                    cycle=cycle,
+                    jours=(d - today).days,
+                    retard_jours=max(alert.days, 1),
+                )
+            )
+    en_retard.sort(key=lambda v: (-v.retard_jours, v.date_visite, v.client.nom))
+    return en_retard
+
+
+def paginer_par_jours(visites, numero_page, jours_par_page: int = 30):
+    """Découpe `visites` (triées par date) en pages de `jours_par_page` dates
+    distinctes ayant au moins une visite. Retourne (page, visites de la page)."""
+    from django.core.paginator import Paginator
+
+    dates = sorted({v.date_visite for v in visites})
+    page = Paginator(dates, jours_par_page).get_page(numero_page)
+    dates_page = set(page.object_list)
+    return page, [v for v in visites if v.date_visite in dates_page]
 
 
 def calendrier_mois(prevues, annee: int, mois: int, today: date | None = None) -> list[list[dict]]:
